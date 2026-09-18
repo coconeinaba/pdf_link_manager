@@ -375,7 +375,10 @@ def destination_view_from_source(
     document: fitz.Document, xref: int, link: dict
 ) -> str:
     """既存リンクのPDF移動先配列から表示方法を推定する。"""
-    source = document.xref_object(xref, compressed=True) if xref > 0 else ""
+    try:
+        source = document.xref_object(xref, compressed=True) if xref > 0 else ""
+    except Exception:
+        source = ""
     _, destination_value = destination_value_from_source(document, xref)
     searchable = " ".join(
         (
@@ -408,7 +411,7 @@ def destination_value_from_source(
     if xref <= 0:
         return "null", "null"
     for key in ("Dest", "A/D"):
-        value_type, value = document.xref_get_key(xref, key)
+        value_type, value = _safe_xref_get_key(document, xref, key)
         if value_type not in {"null", "none"} and value not in {"", "null"}:
             if value_type == "xref":
                 try:
@@ -419,11 +422,11 @@ def destination_value_from_source(
                 except (ValueError, RuntimeError):
                     pass
             return value_type, value
-    action_type, action_value = document.xref_get_key(xref, "A")
+    action_type, action_value = _safe_xref_get_key(document, xref, "A")
     if action_type == "xref":
         try:
             action_xref = int(action_value.split()[0])
-            value_type, value = document.xref_get_key(action_xref, "D")
+            value_type, value = _safe_xref_get_key(document, action_xref, "D")
             if value_type not in {"null", "none"} and value not in {"", "null"}:
                 if value_type == "xref":
                     destination_xref = int(value.split()[0])
@@ -486,7 +489,7 @@ def named_destination_pdf_from_source(
 def uri_from_source(document: fitz.Document, xref: int) -> str | None:
     if xref <= 0:
         return None
-    value_type, value = document.xref_get_key(xref, "A/URI")
+    value_type, value = _safe_xref_get_key(document, xref, "A/URI")
     if value_type in {"string", "name"} and value not in {"", "null"}:
         return value[1:] if value_type == "name" and value.startswith("/") else value
     return None
@@ -495,12 +498,22 @@ def uri_from_source(document: fitz.Document, xref: int) -> str | None:
 def action_kind_from_source(document: fitz.Document, xref: int) -> str:
     if xref <= 0:
         return "不明"
-    value_type, value = document.xref_get_key(xref, "A/S")
+    value_type, value = _safe_xref_get_key(document, xref, "A/S")
     if value_type == "name" and value not in {"", "null"}:
         return value[1:] if value.startswith("/") else value
-    if document.xref_get_key(xref, "Dest")[0] not in {"null", "none"}:
+    if _safe_xref_get_key(document, xref, "Dest")[0] not in {"null", "none"}:
         return "Dest"
     return "不明"
+
+
+def _safe_xref_get_key(
+    document: fitz.Document, xref: int, key: str
+) -> tuple[str, str]:
+    """空・破損したActionの子キーを読めない場合も、当該注釈だけ未対応にする。"""
+    try:
+        return document.xref_get_key(xref, key)
+    except Exception:
+        return "null", "null"
 
 
 def named_destination_pdf_for_rule(rule: LinkRule) -> str:
@@ -618,6 +631,14 @@ def _rect_distance(left: fitz.Rect, right: fitz.Rect) -> float:
     )
 
 
+def _safe_page_get_links(page: fitz.Page) -> list[dict]:
+    """空または不正なActionでMuPDFの高水準解析が失敗しても列挙を継続する。"""
+    try:
+        return [dict(link) for link in page.get_links()]
+    except Exception:
+        return []
+
+
 def _link_annotation_xrefs(document: fitz.Document, page: fitz.Page) -> list[int]:
     result: list[int] = []
     try:
@@ -716,10 +737,7 @@ def _page_link_records(
 
     records: list[dict] = []
     used_xrefs: set[int] = set()
-    try:
-        get_links_entries = page.get_links()
-    except Exception:
-        get_links_entries = []
+    get_links_entries = _safe_page_get_links(page)
     for entry in get_links_entries:
         link = dict(entry)
         source_rect = link.get("from")
@@ -867,7 +885,7 @@ def existing_links_as_rules(
 
                 supported_index += 1
                 border_width, border_color, border_style = record["appearance"]
-                _, pdf_mode = document.xref_get_key(xref, "H")
+                _, pdf_mode = _safe_xref_get_key(document, xref, "H")
                 highlight_mode = mode_by_pdf_value.get(pdf_mode, "invert")
                 rules.append(
                     LinkRule(
