@@ -1,0 +1,11 @@
+macOSのターミナルで、このフォルダーへ移動して次を実行してください。
+
+python3 -m pip install --force-reinstall -r requirements.txt
+python3 -c "import pymupdf; print(pymupdf.__version__, pymupdf.VersionFitz)"
+python3 app.py
+
+期待するバージョン表示:
+1.27.2.3 1.27.2
+
+本ツールはPyMuPDF 1.28系の文字・図形位置回帰を避けるため、1.27.2.3以外では起動しません。
+Tkinterが見つからない場合は、python.org版Pythonの使用またはTkinterの追加導入を確認してください。

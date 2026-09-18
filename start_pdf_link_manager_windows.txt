@@ -1,0 +1,11 @@
+Windows PowerShellまたはコマンドプロンプトで、このフォルダーへ移動して次を実行してください。
+
+python -m pip install --force-reinstall -r requirements.txt
+python -c "import pymupdf; print(pymupdf.__version__, pymupdf.VersionFitz)"
+python app.py
+
+期待するバージョン表示:
+1.27.2.3 1.27.2
+
+本ツールはPyMuPDF 1.28系の文字・図形位置回帰を避けるため、1.27.2.3以外では起動しません。
+仮想環境やバッチファイルは不要です。
