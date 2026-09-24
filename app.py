@@ -28,7 +28,7 @@ except ImportError:  # pragma: no cover - 起動時に利用者へ案内する
 
 
 APP_NAME = "PDF リンク配置マネージャー"
-APP_VERSION = "3.1.1"
+APP_VERSION = "3.1.2"
 REQUIRED_PYMUPDF_VERSION = "1.27.2.3"
 MM_TO_PT = 72.0 / 25.4
 HANDLE_RADIUS = 6
@@ -1202,9 +1202,17 @@ def apply_rules_to_pdf(
                 named_destination_pdf: str | None = None
                 if rule.link_type == "page":
                     target_index = resolve_target_page(document, rule.target_page)
+                    is_original_named_destination = (
+                        rule.source_named_destination is not None
+                        and str(rule.target_page).strip()
+                        == rule.source_named_destination
+                    )
                     if (
-                        named_destination_output == "preserve"
-                        and not str(rule.target_page).strip().isdigit()
+                        is_original_named_destination
+                        or (
+                            named_destination_output == "preserve"
+                            and not str(rule.target_page).strip().isdigit()
+                        )
                     ):
                         named_destination_pdf = named_destination_pdf_for_rule(rule)
                     if target_index == page_index:
@@ -2630,6 +2638,10 @@ class PDFLinkManagerApp(tk.Tk):
             if rule.rule_id == self.selected_rule_id:
                 replacement.source_page = rule.source_page
                 replacement.source_xref = rule.source_xref
+                replacement.source_named_destination = rule.source_named_destination
+                replacement.source_named_destination_pdf = (
+                    rule.source_named_destination_pdf
+                )
                 self.push_undo()
                 self.rules[index] = replacement
                 break
