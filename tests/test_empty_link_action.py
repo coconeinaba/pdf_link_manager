@@ -29,6 +29,10 @@ def build_pdf_with_empty_action(path: Path) -> None:
         xrefs = app._link_annotation_xrefs(document, document[0])
         assert len(xrefs) == 3
         document.xref_set_key(xrefs[1], "A", "<<>>")
+        rect_type, raw_rect = document.xref_get_key(xrefs[2], "Rect")
+        assert rect_type == "array"
+        x0, y0, x1, y1 = [float(value) for value in raw_rect.strip("[]").split()]
+        document.xref_set_key(xrefs[2], "Rect", f"[{x0} {y1} {x1} {y0}]")
         document.saveIncr()
 
 
@@ -45,6 +49,7 @@ class EmptyLinkActionTests(unittest.TestCase):
                 [rule.url for rule in rules],
                 ["https://one.example/", "https://two.example/"],
             )
+            self.assertTrue(all(rule.width > 0 and rule.height > 0 for rule in rules))
             applied, warnings = app.apply_rules_to_pdf(source, output, rules)
             self.assertEqual(applied, 2)
             self.assertFalse(warnings)
