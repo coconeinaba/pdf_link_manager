@@ -28,7 +28,7 @@ except ImportError:  # pragma: no cover - 起動時に利用者へ案内する
 
 
 APP_NAME = "PDF リンク配置マネージャー"
-APP_VERSION = "3.1.2"
+APP_VERSION = "3.1.3"
 REQUIRED_PYMUPDF_VERSION = "1.27.2.3"
 MM_TO_PT = 72.0 / 25.4
 HANDLE_RADIUS = 6
@@ -639,6 +639,15 @@ def _safe_page_get_links(page: fitz.Page) -> list[dict]:
         return []
 
 
+def _ordered_rect(rect: fitz.Rect) -> fitz.Rect:
+    """上下左右が逆のPDF注釈も正の幅と高さを持つ矩形にする。"""
+    value = fitz.Rect(rect)
+    return fitz.Rect(
+        min(value.x0, value.x1), min(value.y0, value.y1),
+        max(value.x0, value.x1), max(value.y0, value.y1),
+    )
+
+
 def _link_annotation_xrefs(document: fitz.Document, page: fitz.Page) -> list[int]:
     result: list[int] = []
     try:
@@ -671,7 +680,9 @@ def _annotation_rect(
         ]
         if len(numbers) != 4:
             return None
-        return fitz.Rect(numbers) * page.transformation_matrix
+        return _ordered_rect(
+            _ordered_rect(fitz.Rect(numbers)) * page.transformation_matrix
+        )
     except (TypeError, ValueError, RuntimeError):
         return None
 
@@ -730,7 +741,7 @@ def _page_link_records(
         while link_object is not None:
             xref = int(getattr(link_object, "xref", 0) or 0)
             if xref > 0:
-                first_rects[xref] = fitz.Rect(link_object.rect)
+                first_rects[xref] = _ordered_rect(link_object.rect)
             link_object = link_object.next
     except Exception:
         pass
@@ -741,7 +752,7 @@ def _page_link_records(
     for entry in get_links_entries:
         link = dict(entry)
         source_rect = link.get("from")
-        rect = fitz.Rect(source_rect) if source_rect is not None else None
+        rect = _ordered_rect(source_rect) if source_rect is not None else None
         reported_xref = int(link.get("xref", 0) or 0)
         xref = reported_xref if reported_xref > 0 else 0
         if xref <= 0 and rect is not None:
